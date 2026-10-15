@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Dubbing Console</title>
+<style>
+  :root{
+    --bg:#0a0b0f; --panel:#12141c; --panel2:#171a24; --line:#252938;
+    --text:#e8eaf2; --dim:#8b90a6; --faint:#585e78;
+    --accent:#7c5cff; --accent2:#22d3ee;
+    --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Inter,system-ui,sans-serif;
+    background-image:radial-gradient(900px 500px at 15% -10%,rgba(124,92,255,.16),transparent),
+                     radial-gradient(700px 400px at 95% 0%,rgba(34,211,238,.10),transparent);
+    background-attachment:fixed;}
+  .wrap{max-width:1220px;margin:0 auto;padding:28px 22px 90px}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap}
+  .logo{width:42px;height:42px;border-radius:12px;flex:none;
+    background:linear-gradient(140deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;font-size:20px}
+  h1{font-size:22px;margin:0;letter-spacing:-.3px}
+  .sub{color:var(--dim);font-size:13.5px;margin:2px 0 24px 56px}
+  .pill{margin-left:auto;font-size:12px;color:var(--dim);background:var(--panel);
+    border:1px solid var(--line);padding:6px 12px;border-radius:999px}
+  .pill b{color:var(--ok)}
+  .pill.bad b{color:var(--err)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:20px;margin-bottom:18px}
+  .card > h2{font-size:12px;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--faint);margin:0 0 16px;font-weight:600}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:860px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  /* ---- keys ---- */
+  .keyrow{display:grid;grid-template-columns:150px 1fr auto auto;gap:10px;
+    align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+  .keyrow:last-child{border-bottom:0}
+  .keyname{font-weight:600;font-size:14px}
+  .keyname small{display:block;font-weight:400;color:var(--faint);font-size:11.5px}
+  input,select,textarea{background:var(--panel2);border:1px solid var(--line);
+    color:var(--text);border-radius:9px;padding:9px 11px;font:inherit;font-size:13.5px;
+    width:100%;outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  input::placeholder{color:var(--faint)}
+  button{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:9px 14px;font:inherit;font-size:13.5px;cursor:pointer;
+    white-space:nowrap;transition:.15s}
+  button:hover{border-color:var(--accent);background:#1d2130}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none;
+    display:inline-block}
+  .dot.ok{background:var(--ok);box-shadow:0 0 8px rgba(52,211,153,.6)}
+  .dot.bad{background:var(--err)}
+  .status{font-size:12px;color:var(--dim);min-width:96px;display:flex;
+    align-items:center;gap:7px}
+
+  /* ---- engine picker ---- */
+  .stage-pick{background:var(--panel2);border:1px solid var(--line);
+    border-radius:12px;padding:14px}
+  .stage-pick label{display:block;font-size:12px;color:var(--dim);margin-bottom:8px}
+  .stage-pick .num{display:inline-grid;place-items:center;width:19px;height:19px;
+    border-radius:6px;background:var(--accent);color:#fff;font-size:11px;
+    font-weight:700;margin-right:8px}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:8px;line-height:1.45;min-height:32px}
+
+  /* ---- drops ---- */
+  .drop{border:1.5px dashed var(--line);border-radius:12px;padding:26px 18px;
+    text-align:center;cursor:pointer;transition:.18s;background:var(--panel2)}
+  .drop:hover,.drop.over{border-color:var(--accent);background:#1a1d2b}
+  .drop.filled{border-style:solid;border-color:var(--accent);background:#191c2c}
+  .drop .icon{font-size:26px;opacity:.75}
+  .drop .title{font-weight:600;margin-top:8px;font-size:14.5px}
+  .drop .desc{color:var(--faint);font-size:12.5px;margin-top:4px}
+  .drop .file{color:var(--accent2);font-size:13px;margin-top:8px;
+    word-break:break-all;font-weight:500}
+  audio{width:100%;margin-top:12px;height:34px}
+
+  /* ---- options ---- */
+  .opt{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .opt label{font-size:13px;color:var(--dim);flex:0 0 148px}
+  .opt input[type=range]{flex:1;width:auto;padding:0;background:none;border:0}
+  .opt .val{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--accent2);
+    min-width:52px;text-align:right}
+
+  /* ---- run ---- */
+  .run{background:linear-gradient(135deg,var(--accent),#5b8cff);border:0;
+    color:#fff;font-weight:600;font-size:15px;padding:14px 30px;border-radius:11px;
+    width:100%;letter-spacing:.2px}
+  .run:hover{filter:brightness(1.12)}
+
+  /* ---- pipeline ---- */
+  .pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  @media(max-width:760px){.pipe{grid-template-columns:1fr 1fr}}
+  .step{background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+    padding:14px;position:relative;overflow:hidden}
+  .step .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--faint)}
+  .step .nm{font-weight:600;margin-top:5px;font-size:14px}
+  .step .eng{font-size:11.5px;color:var(--dim);margin-top:3px}
+  .step.running{border-color:var(--accent)}
+  .step.running::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:40%;
+    background:var(--accent);animation:slide 1.3s ease-in-out infinite}
+  @keyframes slide{0%{left:-40%}100%{left:100%}}
+  .step.done{border-color:var(--ok)}
+  .step.done .nm::after{content:" ✓";color:var(--ok)}
+  .step.error{border-color:var(--err)}
+  .step.error .nm::after{content:" ✕";color:var(--err)}
+
+  .console{background:#07080c;border:1px solid var(--line);border-radius:11px;
+    padding:14px;font:12.5px/1.65 ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    color:#9aa3c0;max-height:250px;overflow:auto;white-space:pre-wrap}
+  .banner{border-radius:10px;padding:12px 14px;font-size:13.5px;margin-bottom:14px}
+  .banner.err{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.35);
+    color:#fca5a5}
+  .banner.ok{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.35);
+    color:#6ee7b7}
+  .banner.warn{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);
+    color:#fcd34d}
+
+  .out{background:var(--panel2);border:1px solid var(--line);border-radius:11px;
+    padding:14px;margin-bottom:11px}
+  .out .h{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600}
+  .out .h .tag{margin-left:auto;font-size:11px;color:var(--faint);font-weight:400}
+  .final{border-color:var(--accent)}
+  .hidden{display:none!important}
+  details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:6px 0}
+  details summary:hover{color:var(--text)}
+  .adv{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .adv .opt label{flex-basis:180px}
+  a{color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">🎙</div>
+    <div>
+      <h1>Voice Dubbing Console</h1>
+    </div>
+    <div class="pill" id="health">connecting…</div>
+  </header>
+  <div class="sub">Drop a target singer and a target song. Get the song back, sung in that voice.</div>
+
+  <div id="alert"></div>
+
+  <!-- ================= KEYS ================= -->
+  <div class="card">
+    <h2>Connected services</h2>
+    <div id="keys"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="saveKeys()">Save keys for this session</button>
+      <button onclick="verifyAll()">Test all connections</button>
+      <span style="font-size:12px;color:var(--faint);align-self:center">
+        Keys stay in memory on your machine. Put them in <code>.env</code> to persist.
+      </span>
+    </div>
+  </div>
+
+  <!-- ================= ENGINES ================= -->
+  <div class="card">
+    <h2>Pipeline routing</h2>
+    <div class="grid2" style="grid-template-columns:repeat(4,1fr)" id="engines"></div>
+  </div>
+
+  <!-- ================= INPUTS ================= -->
+  <div class="card">
+    <h2>Inputs</h2>
+    <div class="grid2">
+      <div>
+        <div class="drop" id="drop-singer" onclick="pick('singer')">
+          <div class="icon">🎤</div>
+          <div class="title">Target singer</div>
+          <div class="desc">Clean solo vocal, 30s–3min. No backing music.</div>
+          <div class="file" id="name-singer"></div>
+        </div>
+        <audio id="prev-singer" controls class="hidden"></audio>
+        <input type="file" id="file-singer" accept="audio/*" class="hidden"
+               onchange="chose('singer',this)">
+      </div>
+      <div>
+        <div class="drop" id="drop-song" onclick="pick('song')">
+          <div class="icon">🎵</div>
+          <div class="title">Target song</div>
+          <div class="desc">Full mix. Vocals get replaced, backing stays.</div>
+          <div class="file" id="name-song"></div>
+        </div>
+        <audio id="prev-song" controls class="hidden"></audio>
+        <input type="file" id="file-song" accept="audio/*" class="hidden"
+               onchange="chose('song',this)">
+      </div>
+    </div>
+
+    <div class="adv">
+      <div class="grid2">
+        <div>
+          <div class="opt">
+            <label>Pitch shift</label>
+            <input type="range" id="pitch" min="-12" max="12" step="1" value="0"
+                   oninput="sync()">
+            <span class="val" id="v-pitch">0 st</span>
+          </div>
+          <div class="opt">
+            <label>Vocal level</label>
+            <input type="range" id="vgain" min="-12" max="12" step="0.5" value="0"
+                   oninput="sync()">
+            <span class="val" id="v-vgain">0 dB</span>
+          </div>
+        </div>
+        <div>
+          <div class="opt">
+            <label>Backing level</label>
+            <input type="range" id="igain" min="-12" max="6" step="0.5" value="-1.5"
+                   oninput="sync()">
+            <span class="val" id="v-igain">-1.5 dB</span>
+          </div>
+          <div class="opt">
+            <label>Vocal reverb</label>
+            <input type="range" id="reverb" min="0" max="0.6" step="0.05" value="0.15"
+                   oninput="sync()">
+            <span class="val" id="v-reverb">0.15</span>
+          </div>
+        </div>
+      </div>
+
+      <details>
+        <summary>Advanced — model slugs & reusing a voice</summary>
+        <div style="padding-top:12px">
+          <div class="opt">
+            <label>Existing voice id</label>
+            <input id="voiceid" placeholder="Skip the clone stage and reuse a voice / model id">
+          </div>
+          <div class="opt">
+            <label>Replicate: separate</label>
+            <input id="m-sep" value="ryan5453/demucs">
+          </div>
+          <div class="opt">
+            <label>Replicate: convert</label>
+            <input id="m-conv" value="zsxkib/realistic-voice-cloning">
+          </div>
+          <div class="opt">
+            <label>Music.AI stem workflow</label>
+            <input id="w-sep" value="stems-vocals-accompaniment">
+          </div>
+          <p style="font-size:11.5px;color:var(--faint);margin:4px 0 0">
+            Community model versions get republished — if Replicate 404s, paste the
+            full <code>owner/name:versionhash</code> from the model page.
+          </p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <button class="run" id="runbtn" onclick="run()">Generate the dub</button>
+
+  <!-- ================= PROGRESS ================= -->
+  <div class="card hidden" id="progress" style="margin-top:18px">
+    <h2>Progress <span id="jobid" style="color:var(--faint);float:right"></span></h2>
+    <div id="jobalert"></div>
+    <div class="pipe" id="pipe"></div>
+    <div id="outputs"></div>
+    <details open style="margin-top:8px">
+      <summary>Console</summary>
+      <div class="console" id="console"></div>
+    </details>
+  </div>
+
+</div>
+
+<script>
+const API = "";
+let CFG = null, FILES = {singer:null, song:null}, POLL = null, JOB = null;
+
+const $ = id => document.getElementById(id);
+
+const STAGE_TITLES = {
+  separate: "Split stems",
+  clone:    "Clone voice",
+  convert:  "Convert vocal",
+  mix:      "Mix & master",
+};
+
+/* ---------------- boot ---------------- */
+async function boot(){
+  try{
+    CFG = await (await fetch(API+"/api/providers")).json();
+  }catch(e){
+    $("health").innerHTML = "<b style='color:var(--err)'>server offline</b>";
+    alertBox("err","Can't reach the local server. Run <code>python server.py</code> in the project folder, then reload this page.");
+    return;
+  }
+  $("health").innerHTML = CFG.ffmpeg
+    ? "<b>ffmpeg ready</b> · saves to " + CFG.output_dir
+    : "<b>ffmpeg missing</b>";
+  $("health").className = "pill" + (CFG.ffmpeg ? "" : " bad");
+  if(!CFG.ffmpeg) alertBox("warn","ffmpeg isn't on your PATH. Every mix path needs it — install from <a href='https://ffmpeg.org/download.html' target='_blank'>ffmpeg.org</a> and restart the server.");
+  renderKeys();
+  renderEngines();
+  sync();
+}
+
+function alertBox(kind, html){
+  $("alert").innerHTML = `<div class="banner ${kind}">${html}</div>`;
+}
+
+/* ---------------- keys ---------------- */
+function renderKeys(){
+  const rows = Object.entries(CFG.providers)
+    .filter(([,p]) => p.key_env)
+    .map(([id,p]) => `
+      <div class="keyrow">
+        <div class="keyname">${p.label}
+          <small>${p.stages.join(" · ")}</small></div>
+        <input id="key-${id}" type="password" placeholder="${p.key_label}"
+               value="${p.source==='session' ? '' : ''}">
+        <div class="status" id="st-${id}">
+          <span class="dot ${p.configured?'ok':''}"></span>
+          <span>${p.configured ? (p.source==='env'?'from .env':'set') : 'not set'}</span>
+        </div>
+        <button onclick="verify('${id}')">Test</button>
+      </div>`).join("");
+  $("keys").innerHTML = rows;
+}
+
+async function saveKeys(){
+  const keys = {};
+  Object.keys(CFG.providers).forEach(id => {
+    const el = $("key-"+id);
+    if(el && el.value.trim()) keys[id] = el.value.trim();
+  });
+  CFG = await (await fetch(API+"/api/keys",{
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({keys})
+  })).json();
+  Object.keys(CFG.providers).forEach(id => { const el=$("key-"+id); if(el) el.value=""; });
+  renderKeys(); renderEngines();
+  alertBox("ok","Keys saved for this session.");
+}
+
+async function verify(id){
+  const st = $("st-"+id);
+  st.innerHTML = `<span class="dot"></span><span>testing…</span>`;
+  const r = await (await fetch(API+"/api/verify/"+id,{method:"POST"})).json();
+  st.innerHTML = `<span class="dot ${r.ok?'ok':'bad'}"></span>`
+               + `<span title="${(r.detail||'').replace(/"/g,'')}">${r.ok?'connected':'failed'}</span>`;
+}
+
+function verifyAll(){ Object.keys(CFG.providers).filter(i=>CFG.providers[i].key_env).forEach(verify); }
+
+/* ---------------- engines ---------------- */
+function renderEngines(){
+  $("engines").innerHTML = CFG.stages.map((stage,i) => {
+    const opts = Object.entries(CFG.providers)
+      .filter(([,p]) => p.stages.includes(stage))
+      .map(([id,p]) => {
+        const sel = id === CFG.defaults[stage] ? "selected" : "";
+        const warn = p.configured ? "" : " (no key)";
+        return `<option value="${id}" ${sel}>${p.label}${warn}</option>`;
+      }).join("");
+    return `<div class="stage-pick">
+      <label><span class="num">${i+1}</span>${STAGE_TITLES[stage]}</label>
+      <select id="eng-${stage}" onchange="hint('${stage}')">${opts}</select>
+      <div class="hint" id="hint-${stage}"></div>
+    </div>`;
+  }).join("");
+  CFG.stages.forEach(hint);
+}
+
+function hint(stage){
+  const id = $("eng-"+stage).value;
+  $("hint-"+stage).textContent = CFG.providers[id].notes;
+}
+
+/* ---------------- files ---------------- */
+function pick(which){ $("file-"+which).click(); }
+
+function chose(which, input){
+  const f = input.files[0]; if(!f) return;
+  setFile(which, f);
+}
+
+function setFile(which, f){
+  FILES[which] = f;
+  $("name-"+which).textContent = `${f.name} · ${(f.size/1048576).toFixed(1)} MB`;
+  $("drop-"+which).classList.add("filled");
+  const a = $("prev-"+which);
+  a.src = URL.createObjectURL(f);
+  a.classList.remove("hidden");
+}
+
+["singer","song"].forEach(w => {
+  const d = document.getElementById("drop-"+w);
+  d.addEventListener("dragover", e => { e.preventDefault(); d.classList.add("over"); });
+  d.addEventListener("dragleave", () => d.classList.remove("over"));
+  d.addEventListener("drop", e => {
+    e.preventDefault(); d.classList.remove("over");
+    const f = e.dataTransfer.files[0];
+    if(f && f.type.startsWith("audio")) setFile(w, f);
+  });
+});
+
+/* ---------------- options ---------------- */
+function sync(){
+  $("v-pitch").textContent  = ($("pitch").value>0?"+":"") + $("pitch").value + " st";
+  $("v-vgain").textContent  = ($("vgain").value>0?"+":"") + $("vgain").value + " dB";
+  $("v-igain").textContent  = $("igain").value + " dB";
+  $("v-reverb").textContent = (+$("reverb").value).toFixed(2);
+}
+
+/* ---------------- run ---------------- */
+async function run(){
+  if(!FILES.singer || !FILES.song){
+    alertBox("err","Upload both the singer reference and the target song first.");
+    return;
+  }
+  const engines = {};
+  CFG.stages.forEach(s => engines[s] = $("eng-"+s).value);
+
+  const missing = [...new Set(Object.values(engines))]
+    .filter(id => !CFG.providers[id].configured);
+  if(missing.length){
+    alertBox("err","Missing API key for: " +
+      missing.map(m=>CFG.providers[m].label).join(", ") + ". Add it above and save.");
+    return;
+  }
+
+  const config = {
+    engines,
+    voice_name: FILES.singer.name.replace(/\.[^.]+$/,""),
+    song_name:  FILES.song.name.replace(/\.[^.]+$/,""),
+    options: {
+      pitch_shift: +$("pitch").value,
+      vocal_gain_db: +$("vgain").value,
+      instrumental_gain_db: +$("igain").value,
+      vocal_reverb: +$("reverb").value,
+    },
+    advanced: {
+      existing_voice_id: $("voiceid").value.trim() || null,
+      replicate_models: { separate: $("m-sep").value.trim(),
+                          convert:  $("m-conv").value.trim() },
+      musicai_workflows: { separate: $("w-sep").value.trim() },
+    },
+  };
+
+  const fd = new FormData();
+  fd.append("singer_audio", FILES.singer);
+  fd.append("song_audio", FILES.song);
+  fd.append("config", JSON.stringify(config));
+
+  $("runbtn").disabled = true;
+  $("runbtn").textContent = "Uploading…";
+  $("alert").innerHTML = "";
+
+  try{
+    const res = await fetch(API+"/api/jobs",{method:"POST",body:fd});
+    if(!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    JOB = (await res.json()).job_id;
+    $("progress").classList.remove("hidden");
+    $("jobid").textContent = "job " + JOB;
+    $("progress").scrollIntoView({behavior:"smooth",block:"start"});
+    startPoll();
+  }catch(e){
+    alertBox("err","Couldn't start: " + e.message);
+    resetBtn();
+  }
+}
+
+function resetBtn(){
+  $("runbtn").disabled = false;
+  $("runbtn").textContent = "Generate the dub";
+}
+
+function startPoll(){
+  clearInterval(POLL);
+  POLL = setInterval(tick, 2000);
+  tick();
+}
+
+async function tick(){
+  let job;
+  try{ job = await (await fetch(API+"/api/jobs/"+JOB)).json(); }
+  catch(e){ return; }
+
+  $("pipe").innerHTML = CFG.stages.map((s,i) => {
+    const st = job.stages[s];
+    return `<div class="step ${st.state}">
+      <div class="lbl">Step ${i+1}</div>
+      <div class="nm">${STAGE_TITLES[s]}</div>
+      <div class="eng">${CFG.providers[st.engine]?.label || st.engine}</div>
+    </div>`;
+  }).join("");
+
+  const c = $("console");
+  const atBottom = c.scrollHeight - c.scrollTop - c.clientHeight < 40;
+  c.textContent = job.log.join("\n");
+  if(atBottom) c.scrollTop = c.scrollHeight;
+
+  renderOutputs(job);
+
+  if(job.state === "error"){
+    $("jobalert").innerHTML = `<div class="banner err"><b>Failed.</b> ${esc(job.error||"")}</div>`;
+    clearInterval(POLL); resetBtn();
+  }else if(job.state === "done"){
+    $("jobalert").innerHTML = `<div class="banner ok"><b>Done.</b> Saved to ${esc(CFG.output_dir)}</div>`;
+    clearInterval(POLL); resetBtn();
+  }else{
+    $("runbtn").textContent = "Working…";
+  }
+}
+
+function renderOutputs(job){
+  const order = ["final_mp3","final_wav","converted_vocals","instrumental","original_vocals"];
+  const labels = {
+    final_mp3:"Final track (MP3)", final_wav:"Final track (WAV)",
+    converted_vocals:"Converted vocal", instrumental:"Instrumental",
+    original_vocals:"Original vocal",
+  };
+  const html = order.filter(k => job.artifacts[k]).map(k => {
+    const url = `${API}/api/jobs/${job.id}/file/${k}`;
+    const mb = (job.artifacts[k].size/1048576).toFixed(1);
+    const isFinal = k.startsWith("final");
+    return `<div class="out ${isFinal?'final':''}">
+      <div class="h">${isFinal?"⭐ ":""}${labels[k]}
+        <span class="tag">${mb} MB</span>
+        <a href="${url}" download style="font-size:12px">download</a></div>
+      <audio controls preload="none" src="${url}"></audio>
+    </div>`;
+  }).join("");
+  if($("outputs").dataset.sig !== html){
+    $("outputs").dataset.sig = html;
+    $("outputs").innerHTML = html;
+  }
+}
+
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+boot();
+</script>
+</body>
+</html>
